@@ -1,0 +1,41 @@
+﻿@inherits LayoutComponentBase
+
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject NavigationManager navigationManager
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <div class="main">
+        <div class="top-row px-4">
+            @if (!string.IsNullOrWhiteSpace(userEmail))
+            {
+                <span>Welcome, @userEmail</span>
+                <a onclick="() =>">Logout</a>
+            }
+            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
+        </div>
+
+        <div class="content px-4">
+            @Body
+        </div>
+    </div>
+</div>
+
+@code{
+    string userEmail { get; set; }
+    protected async override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            userEmail = await localStorage.GetItemAsStringAsync("email");
+    }
+
+    async void Logout()
+    {
+        await localStorage.RemoveItemAsync("email");
+        await localStorage.RemoveItemAsync("token");
+
+        navigationManager.NavigateTo("Login");
+    }
+}

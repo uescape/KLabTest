@@ -1,0 +1,59 @@
+﻿@page "/Login"
+
+<h3>Login</h3>
+@using Newtonsoft.Json;
+@inject NavigationManager navigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@using System.Text
+@using Models.ViewModels
+@using Models.RequestResponses
+
+<EditForm Model="@model" OnValidSubmit="@AuthLogin">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label>Email</label>
+                <input class="form-control" @bind="model.Email" />
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input class="form-control" type="password" @bind="model.Password" />
+            </div>
+            <button type="submit" class="btn btn-primary" @onclick="@AuthLogin">Login</button>
+        </div>
+    </div>
+</EditForm>
+    @code {
+        private static readonly HttpClient client = new HttpClient();
+        UserViewModel model = new UserViewModel();
+        string Error = "";
+
+        async void AuthLogin()
+        {
+            var jsonObject = JsonConvert.SerializeObject(model);
+            var content = new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json");
+
+            var response = await client.PostAsync(navigationManager.BaseUri + "api/Account/Login", content);
+
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                var res = JsonConvert.DeserializeObject<dynamic>(responseString);
+
+                string token = res.data.jwtToken;
+                string email = res.data.email;
+
+                await localStorage.SetItemAsStringAsync("token", token);
+                await localStorage.SetItemAsStringAsync("email", email);
+
+                navigationManager.NavigateTo("TaskList");
+            }
+            else
+            {
+                Error = await response.Content.ReadAsStringAsync();
+            }
+        }
+    }

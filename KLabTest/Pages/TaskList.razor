@@ -1,0 +1,166 @@
+﻿@page "/TaskList"
+<h3>TaskList</h3>
+
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject NavigationManager navigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@using System.Text
+@using Models.ViewModels
+@using Newtonsoft.Json;
+
+@if (!IsAdd)
+{
+    <div class="row">
+        <div class="col-md-12">
+            <div class="form-group">
+                <button class="btn btn-primary" @onclick="() => { IsAdd = true; }">Add Task</button>&nbsp;
+                @if (lstDelTasks.Count > 0)
+                {
+                    <button class="btn btn-danger" @onclick="() => DelTasks()">Delete</button>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <br/>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card" style="width: 18rem;">
+                <ul class="list-group list-group-flush">
+                    @if (lstTasks != null && lstTasks.Count > 0)
+                    {
+                        foreach (var task in lstTasks)
+                        {
+                            <li class="list-group-item">
+                                <input type="checkbox" @onchange="(e) => AddToDelList(task, e)" />
+                                @task.TaskName
+                            </li>
+
+                        }
+                    }
+                    else
+                    {
+                        <li class="list-group-item">No tasks available</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+}
+@if (IsAdd)
+{
+    <div class="row">
+        <div class="col-md-12">
+            <div class="form-group">
+                <h3>Add Task</h3>
+            </div>
+            <div class="form-group">
+                <input type="text" @bind="model.TaskName" />
+            </div>
+            <div class="form-group">
+                <button class="btn btn-primary" @onclick="() => SaveTask()">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    private static readonly HttpClient client = new HttpClient();
+
+    TaskViewModel model;
+    List<Models.Task> lstTasks;
+    List<Models.Task> lstDelTasks;
+    bool IsAdd = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await localStorage.GetItemAsStringAsync("token");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                navigationManager.NavigateTo("Login");
+            }
+            else
+            {
+                if (!client.DefaultRequestHeaders.Contains("Authorization"))
+                {
+                    client.DefaultRequestHeaders.Add("Authorization", "Bearer " + token);
+                }
+
+                GetData();
+
+                StateHasChanged();
+            }
+        }
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        model = new TaskViewModel();
+        lstDelTasks = new List<Models.Task>();
+    }
+
+    void AddToDelList(Models.Task tsk, ChangeEventArgs e)
+    {
+        if ((bool)e.Value)
+        {
+            lstDelTasks.Add(tsk);
+        }
+        else
+        {
+            lstDelTasks.Remove(tsk);
+        }
+
+    }
+
+    async void GetData()
+    {
+        var response = await client.GetAsync(navigationManager.BaseUri + "api/Task/");
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        lstTasks = JsonConvert.DeserializeObject<List<Models.Task>>(responseString);
+
+        StateHasChanged();
+    }
+
+    async Task DelTasks()
+    {
+        var jsonObject = JsonConvert.SerializeObject(lstDelTasks);
+        var content = new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync(navigationManager.BaseUri + "api/Task/Delete", content);
+
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        if (response.IsSuccessStatusCode)
+            navigationManager.NavigateTo("TaskList");
+
+        GetData();
+        StateHasChanged();
+    }
+
+    async Task SaveTask()
+    {
+        var jsonObject = JsonConvert.SerializeObject(model);
+        var content = new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync(navigationManager.BaseUri + "api/Task", content);
+
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        if (response.IsSuccessStatusCode)
+        {
+            model = new TaskViewModel();
+        }
+
+        IsAdd = false;
+        GetData();
+        StateHasChanged();
+    }
+}
